@@ -1,0 +1,472 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+type Task = {
+  id: string;
+  title: string;
+  description?: string | null;
+  dueDate?: string | null;
+  completed: boolean;
+};
+
+type Note = {
+  id: string;
+  title: string;
+  content: string;
+  createdAt: string;
+};
+
+type Reminder = {
+  id: string;
+  message: string;
+  scheduledFor: string;
+  sent: boolean;
+};
+
+export default function Home() {
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [message, setMessage] = useState("");
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskDescription, setTaskDescription] = useState("");
+  const [taskDueDate, setTaskDueDate] = useState("");
+  const [noteTitle, setNoteTitle] = useState("");
+  const [noteContent, setNoteContent] = useState("");
+  const [chatReply, setChatReply] = useState("Your assistant is ready.");
+  const [loading, setLoading] = useState(false);
+
+  const loadDashboard = async () => {
+    const res = await fetch("/api/dashboard");
+    const data = await res.json();
+    setTasks(data.tasks || []);
+    setNotes(data.notes || []);
+    setReminders(data.reminders || []);
+  };
+
+  useEffect(() => {
+    loadDashboard();
+  }, []);
+
+  const addTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!taskTitle.trim()) return;
+
+    await fetch("/api/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: taskTitle,
+        description: taskDescription,
+        dueDate: taskDueDate || null,
+      }),
+    });
+
+    setTaskTitle("");
+    setTaskDescription("");
+    setTaskDueDate("");
+    loadDashboard();
+  };
+
+  const addNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!noteTitle.trim() || !noteContent.trim()) return;
+
+    await fetch("/api/notes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: noteTitle, content: noteContent }),
+    });
+
+    setNoteTitle("");
+    setNoteContent("");
+    loadDashboard();
+  };
+
+  const handleChat = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!message.trim()) return;
+
+    setLoading(true);
+    setChatReply("Thinking...");
+
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message }),
+    });
+
+    const data = await res.json();
+    setChatReply(data.reply || "No answer returned.");
+    setMessage("");
+    await loadDashboard();
+    setLoading(false);
+  };
+
+  return (
+    <main className="app-shell">
+      <aside className="sidebar">
+        <div className="brand">
+          <div className="brand-mark">A</div>
+          <div>
+            <p className="tiny">Workspace</p>
+            <h3>Assistant</h3>
+          </div>
+        </div>
+
+        <nav className="nav">
+          <button className="nav-item active">Overview</button>
+          <button className="nav-item">Tasks</button>
+          <button className="nav-item">Notes</button>
+          <button className="nav-item">Reminders</button>
+        </nav>
+
+        <div className="mini-card">
+          <p className="tiny">Today</p>
+          <strong>{tasks.length} active tasks</strong>
+        </div>
+      </aside>
+
+      <section className="content">
+        <header className="topbar">
+          <div>
+            <p className="tiny">Good morning</p>
+            <h1>AI Personal Assistant</h1>
+          </div>
+          <div className="status-pill">Live</div>
+        </header>
+
+        <div className="grid-two">
+          <div className="panel large">
+            <div className="panel-title-row">
+              <h2>Assistant</h2>
+            </div>
+            <div className="chat-box">{chatReply}</div>
+            <form onSubmit={handleChat} className="stacked-form">
+              <textarea
+                rows={4}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Ask for a plan, task, reminder, or summary..."
+              />
+              <button type="submit" disabled={loading}>
+                {loading ? "Thinking..." : "Send"}
+              </button>
+            </form>
+          </div>
+
+          <div className="panel">
+            <div className="panel-title-row">
+              <h2>Quick task</h2>
+            </div>
+            <form onSubmit={addTask} className="stacked-form">
+              <input
+                value={taskTitle}
+                onChange={(e) => setTaskTitle(e.target.value)}
+                placeholder="Task title"
+              />
+              <textarea
+                rows={3}
+                value={taskDescription}
+                onChange={(e) => setTaskDescription(e.target.value)}
+                placeholder="Task description"
+              />
+              <input
+                type="date"
+                value={taskDueDate}
+                onChange={(e) => setTaskDueDate(e.target.value)}
+              />
+              <button type="submit">Add task</button>
+            </form>
+          </div>
+        </div>
+
+        <div className="grid-three">
+          <div className="panel">
+            <div className="panel-title-row">
+              <h2>Tasks</h2>
+            </div>
+            <ul className="list">
+              {tasks.length === 0 && <li className="empty">No tasks yet.</li>}
+              {tasks.map((task) => (
+                <li key={task.id} className="item-card">
+                  <div>
+                    <strong>{task.title}</strong>
+                    {task.description && <p>{task.description}</p>}
+                    {task.dueDate && <small>Due: {new Date(task.dueDate).toLocaleDateString()}</small>}
+                  </div>
+                  <span className={task.completed ? "badge done" : "badge pending"}>
+                    {task.completed ? "Done" : "Open"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="panel">
+            <div className="panel-title-row">
+              <h2>Notes</h2>
+            </div>
+            <form onSubmit={addNote} className="stacked-form">
+              <input
+                value={noteTitle}
+                onChange={(e) => setNoteTitle(e.target.value)}
+                placeholder="Note title"
+              />
+              <textarea
+                rows={3}
+                value={noteContent}
+                onChange={(e) => setNoteContent(e.target.value)}
+                placeholder="Write your note..."
+              />
+              <button type="submit">Save note</button>
+            </form>
+            <ul className="list note-list">
+              {notes.length === 0 && <li className="empty">No notes yet.</li>}
+              {notes.map((note) => (
+                <li key={note.id} className="note-item">
+                  <strong>{note.title}</strong>
+                  <p>{note.content}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="panel">
+            <div className="panel-title-row">
+              <h2>Reminders</h2>
+            </div>
+            <ul className="list">
+              {reminders.length === 0 && <li className="empty">No reminders yet.</li>}
+              {reminders.map((reminder) => (
+                <li key={reminder.id} className="item-card">
+                  <div>
+                    <strong>{reminder.message}</strong>
+                    <small>{new Date(reminder.scheduledFor).toLocaleString()}</small>
+                  </div>
+                  <span className={reminder.sent ? "badge done" : "badge pending"}>
+                    {reminder.sent ? "Sent" : "Pending"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <style jsx global>{`
+        * { box-sizing: border-box; }
+        html, body {
+          margin: 0;
+          padding: 0;
+          background: #0a1220;
+          color: #ebf3ff;
+          font-family: Arial, Helvetica, sans-serif;
+        }
+        body {
+          min-height: 100vh;
+        }
+        button, input, textarea {
+          font: inherit;
+        }
+        .app-shell {
+          display: grid;
+          grid-template-columns: 260px 1fr;
+          min-height: 100vh;
+        }
+        .sidebar {
+          background: rgba(11, 18, 32, 0.95);
+          border-right: 1px solid rgba(148, 163, 184, 0.18);
+          padding: 24px 18px;
+        }
+        .brand {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          margin-bottom: 24px;
+        }
+        .brand-mark {
+          width: 36px;
+          height: 36px;
+          border-radius: 12px;
+          display: grid;
+          place-items: center;
+          background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+          color: white;
+          font-weight: 700;
+        }
+        .tiny {
+          margin: 0 0 4px;
+          color: #8ca3c9;
+          font-size: 11px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+        h1, h2, h3, p {
+          margin: 0;
+        }
+        .nav {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          margin-bottom: 24px;
+        }
+        .nav-item {
+          background: rgba(30, 41, 59, 0.9);
+          border: 1px solid rgba(148, 163, 184, 0.12);
+          color: #dfeafc;
+          border-radius: 12px;
+          padding: 12px 14px;
+          width: 100%;
+          text-align: left;
+          cursor: pointer;
+        }
+        .nav-item.active {
+          background: linear-gradient(135deg, rgba(59,130,246,0.25), rgba(139,92,246,0.2));
+          border-color: rgba(96, 165, 250, 0.6);
+        }
+        .mini-card {
+          background: rgba(15, 23, 42, 0.9);
+          border: 1px solid rgba(148, 163, 184, 0.15);
+          border-radius: 16px;
+          padding: 16px;
+        }
+        .content {
+          padding: 24px;
+        }
+        .topbar {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 24px;
+        }
+        h1 {
+          font-size: clamp(2rem, 3vw, 2.8rem);
+          line-height: 1.2;
+        }
+        .status-pill {
+          padding: 8px 12px;
+          border-radius: 999px;
+          background: rgba(34, 197, 94, 0.18);
+          color: #bbf7d0;
+          border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+        .grid-two {
+          display: grid;
+          grid-template-columns: 2fr 1fr;
+          gap: 20px;
+          margin-bottom: 20px;
+        }
+        .grid-three {
+          display: grid;
+          grid-template-columns: 1.25fr 1fr 1fr;
+          gap: 20px;
+        }
+        .panel {
+          background: rgba(15, 23, 42, 0.9);
+          border: 1px solid rgba(148, 163, 184, 0.18);
+          border-radius: 20px;
+          padding: 18px;
+          box-shadow: 0 10px 24px rgba(15, 23, 42, 0.30);
+        }
+        .panel.large {
+          min-height: 340px;
+        }
+        .panel-title-row {
+          margin-bottom: 14px;
+        }
+        .chat-box {
+          min-height: 160px;
+          background: rgba(12, 74, 110, 0.16);
+          border: 1px solid rgba(96, 165, 250, 0.25);
+          border-radius: 16px;
+          padding: 16px;
+          line-height: 1.7;
+          color: #dfeefc;
+          margin-bottom: 16px;
+        }
+        textarea, input, button {
+          width: 100%;
+          border-radius: 12px;
+          border: 1px solid rgba(148, 163, 184, 0.2);
+          padding: 12px 14px;
+        }
+        textarea, input {
+          background: rgba(15, 23, 42, 0.65);
+          color: #edf4ff;
+        }
+        button {
+          background: linear-gradient(135deg, #2563eb, #7c3aed);
+          color: white;
+          border: none;
+          font-weight: 700;
+          cursor: pointer;
+        }
+        .stacked-form {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .list {
+          list-style: none;
+          margin: 0;
+          padding: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+        .item-card, .note-item {
+          background: rgba(30, 41, 59, 0.85);
+          border: 1px solid rgba(148, 163, 184, 0.15);
+          border-radius: 12px;
+          padding: 12px 14px;
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+        }
+        .item-card strong, .note-item strong {
+          display: block;
+          margin-bottom: 6px;
+        }
+        .item-card p, .note-item p {
+          margin: 0;
+          color: #bfd0ef;
+          line-height: 1.5;
+        }
+        .item-card small {
+          color: #9eb8eb;
+        }
+        .badge {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 72px;
+          height: fit-content;
+          padding: 8px 10px;
+          border-radius: 999px;
+          font-size: 0.72rem;
+          font-weight: 700;
+        }
+        .badge.done {
+          background: rgba(34, 197, 94, 0.14);
+          color: #bbf7d0;
+        }
+        .badge.pending {
+          background: rgba(251, 191, 36, 0.14);
+          color: #fde68a;
+        }
+        .empty {
+          color: #9caec9;
+          padding: 8px 0;
+        }
+        .note-list { margin-top: 16px; }
+        @media (max-width: 980px) {
+          .app-shell { grid-template-columns: 1fr; }
+          .sidebar { border-right: none; border-bottom: 1px solid rgba(148, 163, 184, 0.18); }
+          .grid-two, .grid-three { grid-template-columns: 1fr; }
+        }
+      `}</style>
+    </main>
+  );
+}
